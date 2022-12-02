@@ -37,6 +37,7 @@ function verifyJWT(req, res, next) {
 async function run() {
   try {
     const usersCollection = client.db("carResale").collection("users");
+    const productsCollection = client.db("carResale").collection("products");
 
     app.get("/jwt", async (req, res) => {
       const email = req.query.email;
@@ -63,13 +64,34 @@ async function run() {
       res.send(users);
     });
 
+    app.get("/users/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      res.send({ isAdmin: user?.role === "admin" });
+    });
+
+    app.get("/users/seller/", async (req, res) => {
+      const role = req.params.role;
+      const query = { role: "seller" };
+      const user = await usersCollection.findOne(query);
+      console.log(user);
+      res.send(user);
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
 
-    app.put("/users/admin/:id", async (req, res) => {
+    app.put("/users/admin/:id", verifyJWT, async (req, res) => {
+      const decodedEmail = req.decoded.email;
+      const query = { email: decodedEmail };
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
       const id = req.params.id;
       const filter = { _id: ObjectId(id) };
       const options = { upsert: true };
@@ -82,6 +104,20 @@ async function run() {
         options
       );
       res.send(result);
+    });
+
+    app.get("/productsCategories", async (req, res) => {
+      const query = {};
+      const cursor = productsCollection.find(query);
+      const productsCategories = await cursor.toArray();
+      res.send(productsCategories);
+    });
+
+    app.get("/productsCategories/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const category = await productsCollection.findOne(query);
+      res.send(category);
     });
   } finally {
   }
